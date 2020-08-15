@@ -1,0 +1,85 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Parameters:
+  StateMachineName:
+    Description: Please type the Step Functions StateMachine Name.
+    Type: String
+    Default: 'morimori_update_sfn'
+  LambdaFunctionName1:
+    Description: Please type the wite time generation Lambda Function Name.
+    Type: String
+    Default: 'wait_time_generation'
+  LambdaFunctionName2:
+    Description: Please type the wait processing Lambda Function Name.
+    Type: String
+    Default: 'wait_processing'
+Resources:
+  LambdaFunction1:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${LambdaFunctionName1}
+      CodeUri: functions/wait_time_generation/
+      Handler: app.lambda_handler
+      Runtime: python3.8
+      Timeout: 60
+      Role: !GetAtt LambdaFunctionRole.Arn
+  LambdaFunction2:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${LambdaFunctionName2}
+      CodeUri: functions/wait_processing/
+      Handler: app.lambda_handler
+      Runtime: python3.8
+      Timeout: 300
+      Role: !GetAtt LambdaFunctionRole.Arn
+  LambdaFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+  StateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Name: !Sub ${StateMachineName}
+      DefinitionSubstitutions:
+        LambdaFunction1: !GetAtt LambdaFunction1.Arn
+        LambdaFunction2: !GetAtt LambdaFunction2.Arn
+      DefinitionUri: statemachine/morimori.asl.json
+      Role: !GetAtt StateMachineRole.Arn
+      Logging:
+        Level: ALL
+        IncludeExecutionData: True
+        Destinations:
+          - CloudWatchLogsLogGroup:
+              LogGroupArn: !GetAtt StateMachineLogGroup.Arn
+  StateMachineLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName : !Join [ "", [ '/aws/states/', !Sub '${StateMachineName}', '-Logs' ] ]
+  StateMachineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - states.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaRole
+        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+

@@ -1,0 +1,85 @@
+{
+  "StartAt":"Check Input",
+  "States":{
+    "Check Input": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "And": [
+            {
+              "Variable": "$.Comment",
+              "IsPresent": true
+            },
+            {
+              "Variable": "$.Comment",
+              "StringMatches": "N*n"
+            }
+          ],
+          "Next": "Check Context Object"
+        }
+      ],
+      "Default": "Fail"
+    },
+    "Check Context Object": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$$.Execution.Name",
+          "IsString": true,
+          "Next": "Invoke Event Lambda"
+        }
+      ],
+      "Default": "Fail"
+    },
+    "Invoke Event Lambda":{
+      "Type":"Task",
+      "Resource":"arn:aws:states:::lambda:invoke",
+      "Parameters":{
+        "FunctionName": "${LambdaFunction2}",
+        "InvocationType" : "Event"
+      },
+      "ResultSelector": {
+        "RequestId.$": "$.SdkResponseMetadata.RequestId",
+        "StatusCode.$": "$.StatusCode"
+      },
+      "ResultPath": "$.InvokeResult",
+      "Next": "Text Format"
+    },
+    "Text Format": {
+      "Type": "Pass",
+      "Parameters": {
+        "Result.$": "States.Format('Cat: {} Dog : {}', $.Comment, $$.Execution.Name)"
+      },
+      "Next": "Wait Time Generation"
+    },
+    "Wait Time Generation": {
+      "Type": "Task",
+      "Resource":  "${LambdaFunction1}",
+      "ResultPath": "$.wait_time",
+      "Next": "IsNumeric Wait Time"
+    },
+    "IsNumeric Wait Time": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.wait_time",
+          "IsNumeric": true,
+          "Next": "Exec Processing"
+        }
+      ],
+      "Default": "Fail"
+    },
+    "Exec Processing": {
+      "Type": "Task",
+      "Resource": "${LambdaFunction2}",
+      "TimeoutSecondsPath": "$.wait_time",
+      "Next": "Succeed"
+    },
+    "Succeed": {
+      "Type": "Succeed"
+    },
+    "Fail": {
+      "Type": "Fail"
+    }
+  }
+}
